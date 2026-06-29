@@ -1,4 +1,5 @@
 import time
+import threading
 
 
 class TokenBucket:
@@ -10,6 +11,7 @@ class TokenBucket:
         self.capacity = capacity
         self.refill_rate = refill_rate
         self.buckets = {}  # client_id -> {"tokens": float, "last_check": float}
+        self._lock = threading.Lock()
 
     def _refill(self, bucket):
         now = time.time()
@@ -21,16 +23,17 @@ class TokenBucket:
         bucket["last_check"] = now
 
     def allow_request(self, client_id: str) -> bool:
-        if client_id not in self.buckets:
-            self.buckets[client_id] = {
-                "tokens": self.capacity,
-                "last_check": time.time()
-            }
+        with self._lock:
+            if client_id not in self.buckets:
+                self.buckets[client_id] = {
+                    "tokens": self.capacity,
+                    "last_check": time.time()
+                }
 
-        bucket = self.buckets[client_id]
-        self._refill(bucket)
+            bucket = self.buckets[client_id]
+            self._refill(bucket)
 
-        if bucket["tokens"] >= 1:
-            bucket["tokens"] -= 1
-            return True
-        return False
+            if bucket["tokens"] >= 1:
+                bucket["tokens"] -= 1
+                return True
+            return False
